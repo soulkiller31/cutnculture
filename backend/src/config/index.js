@@ -53,11 +53,6 @@ export default {
   whatsappSessionPath: process.env.WHATSAPP_SESSION_PATH || './.wwebjs_auth',
   cronTimezone: process.env.CRON_TIMEZONE || 'Asia/Kolkata',
   backendUrl: process.env.BACKEND_URL || process.env.FRONTEND_URL || 'http://localhost:5000',
-  cashfree: {
-    appId: process.env.CASHFREE_APP_ID || '',
-    secretKey: process.env.CASHFREE_SECRET_KEY || '',
-    env: process.env.CASHFREE_ENV || (isProduction ? 'production' : 'sandbox'),
-  },
   admin: {
     email: process.env.ADMIN_EMAIL || (isProduction ? undefined : 'admin@salon.com'),
     password: process.env.ADMIN_PASSWORD || (isProduction ? undefined : 'Admin@123456'),

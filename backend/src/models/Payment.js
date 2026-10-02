@@ -5,7 +5,7 @@ export const PaymentModel = {
   async createPending({ tenantId, orderId, plan, amount }) {
     const { data, error } = await supabase.from('payments').insert({
       tenant_id: tenantId,
-      cashfree_order_id: orderId,
+      order_id: orderId,
       plan,
       amount,
       status: 'pending',
@@ -18,7 +18,7 @@ export const PaymentModel = {
     const { data, error } = await supabase
       .from('payments')
       .select('*')
-      .eq('cashfree_order_id', orderId)
+      .eq('order_id', orderId)
       .maybeSingle();
     if (error) throw new AppError('Failed to fetch payment', 500);
     return data;
@@ -27,12 +27,8 @@ export const PaymentModel = {
   async markPaid(orderId, { paymentId, status = 'paid' } = {}) {
     const { data, error } = await supabase
       .from('payments')
-      .update({
-        status,
-        cashfree_payment_id: paymentId || null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('cashfree_order_id', orderId)
+      .update({ status, payment_id: paymentId || null, updated_at: new Date().toISOString() })
+      .eq('order_id', orderId)
       .select()
       .single();
     if (error) throw new AppError('Failed to update payment', 500);

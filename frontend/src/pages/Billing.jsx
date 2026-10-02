@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import { CheckCircle, Zap, Calendar, CreditCard, AlertTriangle, Loader2, Clock } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { CheckCircle, Zap, Calendar, CreditCard, AlertTriangle, Clock } from 'lucide-react';
 import { paymentAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
@@ -15,12 +14,10 @@ const PLAN_BADGE = {
 };
 
 export default function Billing() {
-  const { subscription, refreshSubscription } = useAuth();
-  const [plans, setPlans]               = useState([]);
+  const { subscription } = useAuth();
+  const [plans, setPlans]           = useState([]);
   const [selectedPlan, setSelectedPlan] = useState('halfyearly');
-  const [loading, setLoading]           = useState(false);
   const [loadingPlans, setLoadingPlans] = useState(true);
-  const [verifying, setVerifying]       = useState(false);
 
   useEffect(() => {
     paymentAPI.getPlans()
@@ -29,118 +26,48 @@ export default function Billing() {
       .finally(() => setLoadingPlans(false));
   }, []);
 
-  // Handle Cashfree return redirect: /billing?order_id=...&plan=...
-  useEffect(() => {
-    const params  = new URLSearchParams(window.location.search);
-    const orderId = params.get('order_id');
-    const plan    = params.get('plan');
-    if (orderId && plan) {
-      window.history.replaceState({}, '', '/billing');
-      handleVerify(orderId, plan);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const handleVerify = async (orderId, plan) => {
-    setVerifying(true);
-    try {
-      const { data } = await paymentAPI.verifyPayment({ orderId, plan });
-      toast.success(data.message || 'Subscription activated!');
-      await refreshSubscription();
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Payment verification failed. Contact support if amount was deducted.');
-    } finally {
-      setVerifying(false);
-    }
-  };
-
-  const handlePay = async () => {
-    setLoading(true);
-    try {
-      const { data } = await paymentAPI.createOrder(selectedPlan);
-      const { paymentSessionId } = data.data;
-
-      if (!window.Cashfree) {
-        await new Promise((resolve, reject) => {
-          const s = document.createElement('script');
-          s.src = 'https://sdk.cashfree.com/js/v3/cashfree.js';
-          s.onload = resolve; s.onerror = reject;
-          document.head.appendChild(s);
-        });
-      }
-
-      const cashfree = await window.Cashfree({
-        mode: import.meta.env.VITE_CASHFREE_MODE || (import.meta.env.PROD ? 'production' : 'sandbox'),
-      });
-      cashfree.checkout({ paymentSessionId, redirectTarget: '_self' });
-      // Don't setLoading(false) — page redirects to Cashfree
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to initiate payment');
-      setLoading(false);
-    }
-  };
-
-  // Derived state
   const isTrial  = subscription?.status === 'trial';
   const isActive = subscription?.status === 'active';
   const isExpired = subscription && !isTrial && !isActive;
   const daysLeft  = subscription?.daysLeft ?? 0;
   const lowDays   = daysLeft <= 1 && daysLeft > 0;
 
-  const statusColor = isActive ? 'text-green-400'
-    : isTrial  ? 'text-yellow-400'
+  const statusColor = isActive  ? 'text-green-400'
+    : isTrial   ? 'text-yellow-400'
     : 'text-red-400';
-
-  const selectedPlanPrice = plans.find(p => p.key === selectedPlan)?.price;
-
-  if (verifying) {
-    return (
-      <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4">
-        <Loader2 size={40} className="animate-spin text-accent" />
-        <p className="text-lg font-semibold text-ink">Confirming your payment…</p>
-        <p className="text-sm text-ink-muted">Please wait, do not close this page.</p>
-      </div>
-    );
-  }
 
   return (
     <div className="max-w-4xl mx-auto animate-fade-in">
       <div className="page-header">
         <div>
           <h1 className="page-title">Billing &amp; Subscription</h1>
-          <p className="page-subtitle">Manage your plan and payment</p>
+          <p className="page-subtitle">View your current plan</p>
         </div>
       </div>
 
-      {/* Trial expiring soon warning */}
+      {/* Trial expiring soon */}
       {isTrial && lowDays && (
         <div className="mb-6 p-4 rounded-xl flex items-start gap-3 bg-yellow-500/10 border border-yellow-500/30">
           <Clock size={20} className="text-yellow-400 mt-0.5 shrink-0" />
           <div>
-            <p className="font-semibold text-yellow-400">
-              Trial ends today!
-            </p>
-            <p className="text-sm text-ink-muted mt-0.5">
-              Subscribe now to keep your data and avoid any interruption.
-            </p>
+            <p className="font-semibold text-yellow-400">Trial ends today!</p>
+            <p className="text-sm text-ink-muted mt-0.5">Contact the salon admin to extend your access.</p>
           </div>
         </div>
       )}
 
-      {/* Expired banner */}
+      {/* Expired */}
       {isExpired && (
         <div className="mb-6 p-4 rounded-xl flex items-start gap-3 bg-red-500/10 border border-red-500/30">
           <AlertTriangle size={20} className="text-red-400 mt-0.5 shrink-0" />
           <div>
-            <p className="font-semibold text-red-400">Your subscription has expired</p>
-            <p className="text-sm text-ink-muted mt-0.5">
-              All CRM features are paused. Choose a plan below to reactivate instantly.
-            </p>
+            <p className="font-semibold text-red-400">Subscription expired</p>
+            <p className="text-sm text-ink-muted mt-0.5">Please contact the salon admin to reactivate.</p>
           </div>
         </div>
       )}
 
-      {/* Current subscription status */}
+      {/* Current status */}
       {subscription && (
         <div className="card mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
@@ -174,13 +101,9 @@ export default function Billing() {
         </div>
       )}
 
-      {/* Plan selector */}
-      <h2 className="text-lg font-semibold text-ink mb-1">
-        {isActive ? 'Extend or Upgrade Your Plan' : isTrial ? 'Subscribe before your trial ends' : 'Choose a Plan'}
-      </h2>
-      <p className="text-sm text-ink-muted mb-5">
-        All plans include full feature access — customers, invoices, WhatsApp automation and reports.
-      </p>
+      {/* Plans (display only) */}
+      <h2 className="text-lg font-semibold text-ink mb-1">Available Plans</h2>
+      <p className="text-sm text-ink-muted mb-5">Contact the admin to upgrade your subscription.</p>
 
       {loadingPlans ? (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
@@ -203,15 +126,15 @@ export default function Billing() {
                 </span>
               )}
               <div className="flex items-center gap-2 mb-3">
-                {plan.key === 'monthly'    ? <Calendar   size={18} className="text-blue-400" />  :
-                 plan.key === 'halfyearly' ? <Zap        size={18} className="text-accent" />     :
-                                             <CreditCard  size={18} className="text-green-400" />}
+                {plan.key === 'monthly'    ? <Calendar   size={18} className="text-blue-400" />
+               : plan.key === 'halfyearly' ? <Zap        size={18} className="text-accent" />
+               :                             <CreditCard  size={18} className="text-green-400" />}
                 <span className="font-semibold text-ink">{plan.label}</span>
               </div>
               <p className="text-3xl font-bold text-ink">₹{plan.price.toLocaleString('en-IN')}</p>
               <p className="text-sm text-ink-muted mt-1">{plan.days} days access</p>
-              {plan.key === 'yearly'     && <p className="text-xs text-green-400 mt-1 font-medium">Best value — save vs monthly</p>}
-              {plan.key === 'halfyearly' && <p className="text-xs text-accent mt-1 font-medium">Save vs monthly billing</p>}
+              {plan.key === 'yearly'     && <p className="text-xs text-green-400 mt-1 font-medium">Best value</p>}
+              {plan.key === 'halfyearly' && <p className="text-xs text-accent mt-1 font-medium">Save vs monthly</p>}
               {selectedPlan === plan.key && (
                 <div className="mt-3 flex items-center gap-1 text-xs font-medium text-accent">
                   <CheckCircle size={13} /> Selected
@@ -222,21 +145,9 @@ export default function Billing() {
         </div>
       )}
 
-      <button
-        onClick={handlePay}
-        disabled={loading || loadingPlans || !selectedPlanPrice}
-        className="btn-primary px-8 min-w-48"
-      >
-        {loading ? (
-          <><Loader2 size={16} className="animate-spin" /> Redirecting…</>
-        ) : (
-          `Pay ₹${selectedPlanPrice?.toLocaleString('en-IN') ?? '…'} via Cashfree`
-        )}
-      </button>
-
-      <p className="text-xs text-ink-muted mt-3">
-        Secure payment via Cashfree · UPI, Cards, Net Banking · Instant activation
-      </p>
+      <div className="p-4 rounded-xl bg-surface-border/30 border border-surface-border text-sm text-ink-muted">
+        💬 To activate or extend a subscription, please contact the salon administrator.
+      </div>
     </div>
   );
 }

@@ -34,25 +34,22 @@ export const SubscriptionModel = {
     return data;
   },
 
-  async activate(tenantId, { plan, cashfreeOrderId, cashfreePaymentId, amountPaid }) {
+  async activate(tenantId, { plan, orderId, paymentId, amountPaid }) {
     const days = PLANS[plan]?.days || 30;
-    const paidFrom = new Date().toISOString();
+    const paidFrom  = new Date().toISOString();
     const paidUntil = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
 
-    // Upsert — deactivate old subscription first
     await supabase.from('subscriptions')
       .update({ status: 'cancelled' })
       .eq('tenant_id', tenantId)
       .neq('status', 'cancelled');
 
     const { data, error } = await supabase.from('subscriptions').insert({
-      tenant_id: tenantId,
+      tenant_id:  tenantId,
       plan,
-      status: 'active',
-      paid_from: paidFrom,
+      status:     'active',
+      paid_from:  paidFrom,
       paid_until: paidUntil,
-      cashfree_order_id: cashfreeOrderId,
-      cashfree_payment_id: cashfreePaymentId,
       amount_paid: amountPaid,
     }).select().single();
     if (error) throw new AppError('Failed to activate subscription', 500);
@@ -72,7 +69,7 @@ export const SubscriptionModel = {
     const { data, error } = await supabase
       .from('subscriptions')
       .select('*')
-      .eq('cashfree_order_id', orderId)
+      .eq('order_id', orderId)
       .eq('status', 'active')
       .maybeSingle();
     if (error) throw new AppError('Database error', 500);
