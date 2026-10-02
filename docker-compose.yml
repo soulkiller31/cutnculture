@@ -3,8 +3,8 @@ services:
   # ── Backend: Node.js + WhatsApp ───────────────────────────────────────────────
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     container_name: crm-backend
     restart: on-failure:5
     env_file:

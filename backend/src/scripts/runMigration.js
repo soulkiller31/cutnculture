@@ -6,7 +6,10 @@ import { fileURLToPath, pathToFileURL } from 'url';
 dotenv.config();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const migrationPath = path.resolve(__dirname, '../../../supabase/migrations/001_initial_schema.sql');
+// Migrations are at /app/supabase/migrations inside the container
+// __dirname = /app/src/scripts, so ../../../supabase would be /supabase (wrong)
+// We use __dirname + ../../supabase to get /app/supabase
+const migrationPath = path.resolve(__dirname, '../../supabase/migrations/001_initial_schema.sql');
 
 export async function runMigration({ logger = console, databaseUrl = process.env.DATABASE_URL } = {}) {
   if (!databaseUrl) {

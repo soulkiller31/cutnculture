@@ -1,8 +1,11 @@
-node_modules
-.wwebjs_auth
-.cache
+# Root-context .dockerignore for backend build
+backend/node_modules
+backend/.wwebjs_auth
+backend/.cache
+backend/*.log
+frontend/
+nginx/
+.git/
+.github/
+.kiro/
 *.log
-.env
-.env.*
-!.env.example
-# .wwebjs_cache is intentionally included — needed for pinned WhatsApp Web version

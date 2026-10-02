@@ -1,0 +1,11 @@
+backend/node_modules
+backend/.wwebjs_auth
+backend/.cache
+backend/*.log
+frontend/node_modules
+frontend/dist
+.git
+.github
+.kiro
+.trae
+*.log

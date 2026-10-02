@@ -18,12 +18,16 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Install dependencies
-COPY package.json package-lock.json* ./
+# Install dependencies (build context is repo root)
+COPY backend/package.json backend/package-lock.json* ./
 RUN npm ci --omit=dev
 
-# Copy source
-COPY . .
+# Copy backend source
+COPY backend/ .
+
+# Copy migration files — runMigration.js looks for ../../supabase/migrations from /app/src/scripts
+# which resolves to /app/supabase/migrations
+COPY supabase/ ./supabase/
 
 # Pre-create WhatsApp session dirs and ensure cache is present
 RUN mkdir -p .wwebjs_auth .wwebjs_cache .cache/puppeteer
