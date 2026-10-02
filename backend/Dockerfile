@@ -25,7 +25,7 @@ RUN npm ci --omit=dev
 # Copy source
 COPY . .
 
-# Pre-create WhatsApp session dirs
+# Pre-create WhatsApp session dirs and ensure cache is present
 RUN mkdir -p .wwebjs_auth .wwebjs_cache .cache/puppeteer
 
 ENV NODE_ENV=production \

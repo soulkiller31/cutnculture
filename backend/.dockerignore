@@ -1,8 +1,8 @@
 node_modules
 .wwebjs_auth
-.wwebjs_cache
 .cache
 *.log
 .env
 .env.*
 !.env.example
+# .wwebjs_cache is intentionally included — needed for pinned WhatsApp Web version

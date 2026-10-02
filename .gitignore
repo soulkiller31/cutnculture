@@ -20,10 +20,10 @@ lerna-debug.log*
 .DS_Store
 Thumbs.db
 
-# WhatsApp session (contains auth tokens — never commit)
+# WhatsApp session auth (contains auth tokens — never commit)
 backend/.wwebjs_auth/
-backend/.wwebjs_cache/
 backend/.cache/
+# NOTE: .wwebjs_cache is tracked — it contains pinned WhatsApp Web HTML needed for PDF sending
 
 # Uploads
 backend/uploads/
