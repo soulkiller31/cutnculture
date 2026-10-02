@@ -3,22 +3,26 @@ FROM node:22-slim AS builder
 
 WORKDIR /app
 
-ARG VITE_API_URL=/api
-ENV VITE_API_URL=$VITE_API_URL
-
+# Copy package files
 COPY package.json package-lock.json* ./
-RUN npm ci
 
+# Install deps (use install not ci in case lock file is missing)
+RUN npm install
+
+# Copy all source including .env for Vite build-time env vars
 COPY . .
+
+# Build React app
 RUN npm run build
 
 # ── Stage 2: Serve with Nginx ─────────────────────────────────────────────────
 FROM nginx:alpine
 
+# Copy built React app
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Remove default nginx config (we mount our own via docker-compose)
-RUN rm /etc/nginx/conf.d/default.conf
+# Remove default nginx config — we mount our own via docker-compose volume
+RUN rm -f /etc/nginx/conf.d/default.conf
 
 EXPOSE 80 443
 
