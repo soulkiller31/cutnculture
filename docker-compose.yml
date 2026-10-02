@@ -8,7 +8,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: crm-backend
-    restart: unless-stopped
+    restart: on-failure:5
     env_file:
       - ./backend/.env
     environment:
