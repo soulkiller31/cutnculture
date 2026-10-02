@@ -1,6 +1,4 @@
 node_modules
 dist
 *.log
-.env
-.env.*
-!.env.example
+# .env is intentionally included — needed for Vite build-time env vars (VITE_API_URL etc.)
