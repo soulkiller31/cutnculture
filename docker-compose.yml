@@ -45,8 +45,7 @@ services:
       - certbot_certs:/etc/letsencrypt:ro
       - certbot_www:/var/www/certbot:ro
     depends_on:
-      backend:
-        condition: service_healthy
+      - backend
     networks:
       - crm-net
 
