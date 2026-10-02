@@ -1,7 +1,8 @@
 version: '3.9'
 
 services:
-  # ── Backend (Node.js + WhatsApp) ───────────────────────────────────────────
+
+  # ── Backend: Node.js + WhatsApp (Puppeteer + Chrome) ────────────────────────
   backend:
     build:
       context: ./backend
@@ -18,24 +19,22 @@ services:
       - whatsapp_session:/app/.wwebjs_auth
       - whatsapp_cache:/app/.wwebjs_cache
       - pup_cache:/app/.cache
-    ports:
-      - "5000:5000"
+    expose:
+      - "5000"
     networks:
-      - crm-network
+      - crm-net
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
       interval: 30s
       timeout: 10s
-      retries: 3
-      start_period: 40s
+      retries: 5
+      start_period: 60s
 
-  # ── Frontend (Nginx serving React build) ──────────────────────────────────
+  # ── Frontend: React (Nginx) ──────────────────────────────────────────────────
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-      args:
-        VITE_API_URL: /api
     container_name: crm-frontend
     restart: unless-stopped
     ports:
@@ -46,18 +45,25 @@ services:
       - certbot_certs:/etc/letsencrypt:ro
       - certbot_www:/var/www/certbot:ro
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     networks:
-      - crm-network
+      - crm-net
 
-  # ── Certbot (SSL — optional, comment out if no domain yet) ─────────────────
+  # ── Certbot: auto-renew SSL (needs a domain) ─────────────────────────────────
   certbot:
     image: certbot/certbot:latest
     container_name: crm-certbot
+    restart: unless-stopped
     volumes:
       - certbot_certs:/etc/letsencrypt
       - certbot_www:/var/www/certbot
-    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done'"
+    entrypoint: >
+      /bin/sh -c "trap exit TERM;
+      while :; do
+        certbot renew --webroot -w /var/www/certbot --quiet;
+        sleep 12h & wait $${!};
+      done"
 
 volumes:
   whatsapp_session:
@@ -67,5 +73,5 @@ volumes:
   certbot_www:
 
 networks:
-  crm-network:
+  crm-net:
     driver: bridge

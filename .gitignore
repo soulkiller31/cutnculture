@@ -3,10 +3,10 @@ node_modules/
 .pnp
 .pnp.js
 
-# Environment files
-.env
-.env.local
-.env.*.local
+# Environment files — repo is PRIVATE so .env is tracked
+# .env
+# .env.local
+# .env.*.local
 
 # Logs
 *.log
