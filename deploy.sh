@@ -7,7 +7,8 @@ set -e
 
 REPO="https://github.com/soulkiller31/cutnculture.git"
 APP_DIR="/var/www/cutnculture"
-DOMAIN=""   # Set your domain here e.g. cutnculturesalon.cloud
+DOMAIN="cutnculturesalon.cloud"
+EMAIL="cutncultureunisexsalon@gmail.com"
 
 echo ""
 echo "═══════════════════════════════════════════"
@@ -97,7 +98,7 @@ if [ -n "$DOMAIN" ]; then
   echo "  To enable SSL run:"
   echo "  docker-compose run --rm certbot certonly \\"
   echo "    --webroot -w /var/www/certbot \\"
-  echo "    -d $DOMAIN --email your@email.com --agree-tos"
+  echo "    -d $DOMAIN -d www.$DOMAIN --email $EMAIL --agree-tos --no-eff-email"
 else
   echo "  App running at: http://$(curl -s ifconfig.me)"
   echo ""
