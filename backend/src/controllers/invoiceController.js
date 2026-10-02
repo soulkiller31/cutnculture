@@ -259,22 +259,42 @@ export const saveCustomerAndSendWhatsApp = asyncHandler(async (req, res) => {
     const invoiceNo = String(invoice.invoice_number).padStart(4, '0');
     const caption = `Hello ${invoice.customer_name}! 🙏\n\nPlease find your invoice *#${invoiceNo}* from *${salonName}* attached.\n\n*Total: ₹${Number(invoice.total).toFixed(2)}*\n\nThank you for visiting us! 🌟`;
     const filename = `Invoice-${invoiceNo}.pdf`;
+    const textMessage = formatInvoiceMessage(invoice, salonName, salonAddress, salonPhone);
 
+    let sentMethod = null;
+    let sendError = null;
+
+    // Try PDF first, fall back to text message if media sending fails
     try {
       await svc.sendDocument(customer.phone, tmpPdfPath, filename, caption);
       console.log('[Invoice] PDF sent to', customer.phone);
+      sentMethod = 'pdf';
+    } catch (pdfSendErr) {
+      console.warn(`[Invoice] PDF send failed (${pdfSendErr.message.split('\n')[0]}), falling back to text message…`);
+      try {
+        await svc.sendMessage(customer.phone, textMessage);
+        console.log('[Invoice] Text invoice sent to', customer.phone);
+        sentMethod = 'text';
+      } catch (textSendErr) {
+        console.error('[Invoice] Text fallback also failed:', textSendErr.message);
+        sendError = textSendErr;
+      }
+    } finally {
+      if (tmpPdfPath) { try { fs.unlinkSync(tmpPdfPath); } catch { /* ignore */ } }
+    }
 
+    if (sentMethod) {
       await MessageLogModel.create({
         tenant_id: tenantId,
         customer_id: customer.id,
         phone: customer.phone,
-        message: caption,
+        message: sentMethod === 'pdf' ? caption : textMessage,
         type: 'invoice',
         status: 'sent',
       });
       await InvoiceModel.markWhatsAppSent(invoice.id, tenantId);
-      whatsappResult = { sent: true };
-    } catch (err) {
+      whatsappResult = { sent: true, method: sentMethod };
+    } else {
       await MessageLogModel.create({
         tenant_id: tenantId,
         customer_id: customer.id,
@@ -282,11 +302,9 @@ export const saveCustomerAndSendWhatsApp = asyncHandler(async (req, res) => {
         message: caption,
         type: 'invoice',
         status: 'failed',
-        error_message: err.message,
+        error_message: sendError?.message,
       });
-      throw new AppError(`Saved but WhatsApp failed: ${err.message}`, 500);
-    } finally {
-      if (tmpPdfPath) { try { fs.unlinkSync(tmpPdfPath); } catch { /* ignore */ } }
+      throw new AppError(`Invoice saved but WhatsApp send failed: ${sendError?.message}`, 500);
     }
   }
 
@@ -349,21 +367,37 @@ export const resendInvoicePdf = asyncHandler(async (req, res) => {
 
   const caption = `Hello! 🙏\n\nPlease find invoice *#${invoiceNo}* from *${branding.name}* attached.\n\n*Total: ₹${Number(invoice.total).toFixed(2)}*\n\nThank you! 🌟`;
   const filename = `Invoice-${invoiceNo}.pdf`;
+  const textMessage = formatInvoiceMessage(invoice, branding.name, branding.address, branding.phone);
+
+  let sentMethod = null;
+  let sendError = null;
 
   try {
     await svcResend.sendDocument(phone, tmpPdfPath, filename, caption);
+    sentMethod = 'pdf';
+  } catch (pdfErr) {
+    console.warn(`[Invoice] Resend PDF failed (${pdfErr.message.split('\n')[0]}), trying text…`);
+    try {
+      await svcResend.sendMessage(phone, textMessage);
+      sentMethod = 'text';
+    } catch (textErr) {
+      sendError = textErr;
+    }
+  } finally {
+    try { fs.unlinkSync(tmpPdfPath); } catch { /* ignore */ }
+  }
 
+  if (sentMethod) {
     await MessageLogModel.create({
       tenant_id: tenantId,
       customer_id: invoice.customer_id,
       phone,
-      message: caption,
+      message: sentMethod === 'pdf' ? caption : textMessage,
       type: 'invoice',
       status: 'sent',
     });
-
-    res.json({ success: true, message: `Invoice #${invoiceNo} resent to ${phone}` });
-  } catch (err) {
+    res.json({ success: true, message: `Invoice #${invoiceNo} resent to ${phone} (${sentMethod})` });
+  } else {
     await MessageLogModel.create({
       tenant_id: tenantId,
       customer_id: invoice.customer_id,
@@ -371,11 +405,9 @@ export const resendInvoicePdf = asyncHandler(async (req, res) => {
       message: caption,
       type: 'invoice',
       status: 'failed',
-      error_message: err.message,
+      error_message: sendError?.message,
     });
-    throw new AppError(`Resend failed: ${err.message}`, 500);
-  } finally {
-    try { fs.unlinkSync(tmpPdfPath); } catch { /* ignore */ }
+    throw new AppError(`Resend failed: ${sendError?.message}`, 500);
   }
 });
 
