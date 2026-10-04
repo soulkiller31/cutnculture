@@ -63,21 +63,6 @@ const wwebMemoizePatchSource = `(function patchWWebMemoize() {
         }
       };
       window.WWebJS.__getMessageModelPatched = true;
-
-      // Also patch getChat and sendMessage wrappers
-      if (typeof window.WWebJS.sendMessage === 'function') {
-        const origSend = window.WWebJS.sendMessage;
-        window.WWebJS.sendMessage = async function safeSendMessage(...args) {
-          try { return await origSend.apply(this, args); }
-          catch (e) {
-            const m = String(e && e.message || e);
-            if (m.includes('id') || m.includes('memoize') || m.includes('getter') || m.includes('property')) {
-              return args[0]; // return the chat object as a stand-in
-            }
-            throw e;
-          }
-        };
-      }
       return true;
     };
 
@@ -621,17 +606,6 @@ class WhatsAppService {
           }
         };
         window.WWebJS.__getMessageModelPatched = true;
-        if (typeof window.WWebJS.sendMessage === 'function') {
-          const origSend = window.WWebJS.sendMessage;
-          window.WWebJS.sendMessage = async function(...args) {
-            try { return await origSend.apply(this, args); }
-            catch (e) {
-              const m = String(e && e.message || e);
-              if (m.includes('id') || m.includes('memoize') || m.includes('getter') || m.includes('property')) return args[0];
-              throw e;
-            }
-          };
-        }
       })()`);
     } catch { /* ignore */ }
   }
@@ -710,7 +684,7 @@ class WhatsAppService {
     if (!this.client || this.status !== 'connected') throw new Error('WhatsApp is not connected');
     await this._ensurePatched();
     const { chatId, fallbackChatId, normalized } = await this._resolveChatId(phone);
-    console.log(`[WhatsApp][${this.tenantId}] sendDocument → ${chatId} (${filename})`);
+    console.log(`[WhatsApp][${this.tenantId}] sendDocument → chatId=${chatId} phone=${phone} normalized=${normalized} file=${filename}`);
 
     const buildMedia = () => {
       try {
@@ -732,7 +706,12 @@ class WhatsAppService {
       const useChatId = attempt <= 1 ? chatId : fallbackChatId;
       try {
         const result = await this.client.sendMessage(useChatId, media, { sendMediaAsDocument: true, caption });
-        console.log(`[WhatsApp][${this.tenantId}] sendDocument SUCCESS to ${useChatId}`);
+        const msgId = result?.id?._serialized || result?.id || 'no-id';
+        console.log(`[WhatsApp][${this.tenantId}] sendDocument SUCCESS to ${useChatId} msgId=${msgId} result=${JSON.stringify(result?.id)}`);
+        // Verify the result is a real message and not a dummy
+        if (!result) {
+          console.warn(`[WhatsApp][${this.tenantId}] sendDocument returned null/undefined — message may not have been delivered`);
+        }
         return result;
       } catch (err) {
         lastErr = err;
