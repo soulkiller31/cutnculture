@@ -43,26 +43,41 @@ const wwebMemoizePatchSource = `(function patchWWebMemoize() {
       return _origDefProp(obj, prop, descriptor);
     };
 
-    // Strategy 2: Patch window.WWebJS.getMessageModel to swallow memoize errors
-    // The error fires inside getMessageModel when it calls getSender() on the msg.
-    // We wrap it so a failed getMessageModel returns null rather than throwing,
-    // which lets sendMessage() return undefined (still a successful send).
+    // Strategy 2: Patch WWebJS functions that crash on memoize errors
     const patchWWebJS = () => {
       if (!window.WWebJS) return false;
-      if (window.WWebJS.__getMessageModelPatched) return true;
-      const origGetMsgModel = window.WWebJS.getMessageModel;
-      if (typeof origGetMsgModel !== 'function') return false;
-      window.WWebJS.getMessageModel = function safeGetMessageModel(msg) {
-        try { return origGetMsgModel.call(this, msg); }
-        catch (e) {
-          const m = String(e && e.message || e);
-          if (m.includes('id') || m.includes('memoize') || m.includes('getter') || m.includes('property')) {
-            return null; // send succeeded, just can't read the msg model back
+      if (window.WWebJS.__fullyPatched) return true;
+
+      // Patch getMessageModel — crashes reading sender on sent media msgs
+      if (typeof window.WWebJS.getMessageModel === 'function') {
+        const origGMM = window.WWebJS.getMessageModel;
+        window.WWebJS.getMessageModel = function(msg) {
+          try { return origGMM.call(this, msg); }
+          catch (e) {
+            const m = String(e && e.message || e);
+            if (m.includes('id') || m.includes('memoize') || m.includes('getter') || m.includes('property')) return null;
+            throw e;
           }
-          throw e;
-        }
-      };
-      window.WWebJS.__getMessageModelPatched = true;
+        };
+      }
+
+      // Patch processMediaData — crashes on memoize during media/doc upload
+      // This is the root cause for PDF not sending: it throws before the msg is created
+      if (typeof window.WWebJS.processMediaData === 'function') {
+        const origPMD = window.WWebJS.processMediaData;
+        window.WWebJS.processMediaData = async function(...args) {
+          try { return await origPMD.apply(this, args); }
+          catch (e) {
+            const m = String(e && e.message || e);
+            if (m.includes('id') || m.includes('memoize') || m.includes('getter') || m.includes('property')) {
+              throw new Error('WWEBJS_MEDIA_MEMOIZE_ERROR: ' + m.slice(0, 200));
+            }
+            throw e;
+          }
+        };
+      }
+
+      window.WWebJS.__fullyPatched = true;
       return true;
     };
 
@@ -186,6 +201,7 @@ const isMemoizeError = (msg) =>
   msg.includes('memoize') ||
   msg.includes('No LID') ||
   msg.includes('@lid') ||
+  msg.includes('WWEBJS_MEDIA_MEMOIZE_ERROR') ||
   /getter.*id/i.test(msg) ||
   (/getter must include/i.test(msg)) ||
   (msg.includes('undefined') && /getter/i.test(msg));
@@ -594,18 +610,32 @@ class WhatsAppService {
     if (!realPage) return;
     try {
       await realPage.evaluate(`(function() {
-        if (!window.WWebJS || window.WWebJS.__getMessageModelPatched) return;
-        const origGetMsgModel = window.WWebJS.getMessageModel;
-        if (typeof origGetMsgModel !== 'function') return;
-        window.WWebJS.getMessageModel = function safeGetMessageModel(msg) {
-          try { return origGetMsgModel.call(this, msg); }
-          catch (e) {
-            const m = String(e && e.message || e);
-            if (m.includes('id') || m.includes('memoize') || m.includes('getter') || m.includes('property')) return null;
-            throw e;
-          }
-        };
-        window.WWebJS.__getMessageModelPatched = true;
+        if (!window.WWebJS || window.WWebJS.__fullyPatched) return;
+        if (typeof window.WWebJS.getMessageModel === 'function') {
+          const orig = window.WWebJS.getMessageModel;
+          window.WWebJS.getMessageModel = function(msg) {
+            try { return orig.call(this, msg); }
+            catch (e) {
+              const m = String(e && e.message || e);
+              if (m.includes('id') || m.includes('memoize') || m.includes('getter') || m.includes('property')) return null;
+              throw e;
+            }
+          };
+        }
+        if (typeof window.WWebJS.processMediaData === 'function') {
+          const origPMD = window.WWebJS.processMediaData;
+          window.WWebJS.processMediaData = async function(...args) {
+            try { return await origPMD.apply(this, args); }
+            catch (e) {
+              const m = String(e && e.message || e);
+              if (m.includes('id') || m.includes('memoize') || m.includes('getter') || m.includes('property')) {
+                throw new Error('WWEBJS_MEDIA_MEMOIZE_ERROR: ' + m.slice(0, 200));
+              }
+              throw e;
+            }
+          };
+        }
+        window.WWebJS.__fullyPatched = true;
       })()`);
     } catch { /* ignore */ }
   }
